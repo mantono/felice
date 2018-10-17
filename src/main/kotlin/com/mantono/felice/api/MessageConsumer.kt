@@ -1,6 +1,6 @@
 package com.mantono.felice.api
 
-interface Consumer<K, V> {
+interface MessageConsumer<K, V> {
 	suspend fun consume(message: Message<K, V>): ConsumeResult
 }
 

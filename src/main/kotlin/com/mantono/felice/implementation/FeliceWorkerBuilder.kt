@@ -1,6 +1,6 @@
 package com.mantono.felice.implementation
 
-import com.mantono.felice.api.Consumer
+import com.mantono.felice.api.MessageConsumer
 import com.mantono.felice.api.Interceptor
 import com.mantono.felice.api.Worker
 import com.mantono.felice.api.WorkerBuilder
@@ -24,13 +24,13 @@ data class FeliceWorkerBuilder<K, V>(
 	override fun interceptor(interceptor: Interceptor<K, V>): WorkerBuilder<K, V> =
 		copy(interceptors = this.interceptors + interceptor)
 
-	override fun consumer(consumer: Consumer<K, V>): Worker<K, V> {
+	override fun consumer(consumer: MessageConsumer<K, V>): Worker<K, V> {
 		check(topics.isNotEmpty()) { "At least one topic must be given" }
 		check(groupId != null) { "Group id was not set" }
 		return this.toWorker(consumer)
 	}
 
-	private fun toWorker(consumer: Consumer<K, V>): Worker<K, V> = FeliceWorker(
+	private fun toWorker(consumer: MessageConsumer<K, V>): Worker<K, V> = FeliceWorker(
 		groupId = groupId!!,
 		topics = topics.toSet(),
 		interceptors = interceptors,

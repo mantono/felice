@@ -1,13 +1,10 @@
 package com.mantono.felice
 
 import com.mantono.felice.api.ConsumeResult
-import com.mantono.felice.api.Consumer
+import com.mantono.felice.api.MessageConsumer
 import com.mantono.felice.api.Message
 import com.mantono.felice.implementation.FeliceWorkerBuilder
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
-import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -15,7 +12,7 @@ class WorkerBuildetTest {
 
 	@Test
 	fun testNormalControlFlow() {
-		val consumer = object: Consumer<String, String> {
+		val consumer = object: MessageConsumer<String, String> {
 			override suspend fun consume(message: Message<String, String>): ConsumeResult =
 					ConsumeResult.Success
 		}
