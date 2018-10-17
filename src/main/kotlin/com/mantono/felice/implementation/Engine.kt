@@ -1,22 +1,45 @@
+@file:Suppress("EXPERIMENTAL_API_USAGE", "EXPERIMENTAL_UNSIGNED_LITERALS")
+
 package com.mantono.felice.implementation
 
 import com.mantono.felice.api.ConsumeResult
 import com.mantono.felice.api.Message
 import com.mantono.felice.api.Worker
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.apache.kafka.clients.consumer.KafkaConsumer
+import org.apache.kafka.common.PartitionInfo
 import java.time.Duration
+import kotlin.coroutines.CoroutineContext
 
 
-private fun <K, V> execute(worker: Worker<K, V>): Job = GlobalScope.launch {
+private fun <K, V> execute(worker: Worker<K, V>): CoroutineContext {
 	val kafkaConsumer: KafkaConsumer<K, V> = createKafkaConsumer(worker)
-	run(this, worker.consumer::consume, kafkaConsumer)
+	val threadCount: UInt = computeThreadCount(kafkaConsumer)
+	val scope: CoroutineScope = WorkerScope(threadCount)
+	scope.launch {
+		// TODO do something here, concurrently
+	}
+	return scope.coroutineContext
 }
+
+class WorkerScope(threads: UInt): CoroutineScope {
+	override val coroutineContext: CoroutineContext = dispatcher(threads)
+}
+
+private fun <K, V> KafkaConsumer<K, V>.partitions(): List<PartitionInfo> = this
+	.listTopics()
+	.flatMap { it.value }
+	.toList()
+
+private fun <K, V> computeThreadCount(consumer: KafkaConsumer<K, V>): UInt {
+	val partitionCount: Int = consumer.partitions().count()
+	return (partitionCount / 8).coerceAtLeast(1).toUInt()
+}
+
+private fun min(u0: UInt, u1: UInt): UInt = if(u0 < u1) u0 else u1
 
 fun <K, V> createKafkaConsumer(worker: Worker<K, V>): KafkaConsumer<K, V> {
 	return KafkaConsumer<K, V>(worker.options + ("groupId" to worker.groupId)).apply {
@@ -26,9 +49,9 @@ fun <K, V> createKafkaConsumer(worker: Worker<K, V>): KafkaConsumer<K, V> {
 
 private tailrec suspend fun <K, V> run(
 	scope: CoroutineScope,
-	consumeFunction: suspend (com.mantono.felice.api.Message<K, V>) -> ConsumeResult,
+	consumeFunction: suspend (Message<K, V>) -> ConsumeResult,
 	cons: KafkaConsumer<K, V>,
-	queue: Channel<com.mantono.felice.api.Message<K, V>> = Channel(100)
+	queue: Channel<Message<K, V>> = Channel(100)
 ) {
 	if(!scope.isActive) {
 		return
