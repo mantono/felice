@@ -3,7 +3,7 @@ package com.mantono.felice
 import com.mantono.felice.api.ConsumeResult
 import com.mantono.felice.api.MessageConsumer
 import com.mantono.felice.api.Message
-import com.mantono.felice.implementation.FeliceWorkerBuilder
+import com.mantono.felice.api.FeliceWorkerBuilder
 import kotlinx.coroutines.Job
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test

@@ -4,7 +4,7 @@ package com.mantono.felice.implementation
 
 import com.mantono.felice.api.ConsumeResult
 import com.mantono.felice.api.Message
-import com.mantono.felice.api.Worker
+import com.mantono.felice.api.worker.Worker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
