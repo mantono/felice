@@ -2,7 +2,7 @@
 
 package com.mantono.felice.implementation
 
-import com.mantono.felice.api.ConsumeResult
+import com.mantono.felice.api.ConsumerResult
 import com.mantono.felice.api.Message
 import com.mantono.felice.api.worker.Worker
 import kotlinx.coroutines.CoroutineScope
@@ -49,7 +49,7 @@ fun <K, V> createKafkaConsumer(worker: Worker<K, V>): KafkaConsumer<K, V> {
 
 private tailrec suspend fun <K, V> run(
 	scope: CoroutineScope,
-	consumeFunction: suspend (Message<K, V>) -> ConsumeResult,
+	consumeFunction: suspend (Message<K, V>) -> ConsumerResult,
 	cons: KafkaConsumer<K, V>,
 	queue: Channel<Message<K, V>> = Channel(100)
 ) {

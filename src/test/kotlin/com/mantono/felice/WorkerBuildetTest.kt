@@ -1,9 +1,11 @@
 package com.mantono.felice
 
-import com.mantono.felice.api.ConsumeResult
+import com.mantono.felice.api.ConsumerResult
 import com.mantono.felice.api.MessageConsumer
 import com.mantono.felice.api.Message
 import com.mantono.felice.api.FeliceWorkerBuilder
+import com.mantono.felice.api.WorkerBuilder
+import com.mantono.felice.api.worker.Worker
 import kotlinx.coroutines.Job
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -12,17 +14,20 @@ class WorkerBuildetTest {
 
 	@Test
 	fun testNormalControlFlow() {
-		val consumer = object: MessageConsumer<String, String> {
-			override suspend fun consume(message: Message<String, String>): ConsumeResult =
-					ConsumeResult.Success
-		}
 
-		val job: Job = FeliceWorkerBuilder<String, String>()
+		val worker: Worker<String, String> = WorkerBuilder<String, String>()
 			.topic("topic1", "topic2")
 			.groupId("my-groupId")
 			.options(emptyMap())
-			.consumer(consumer)
-			.start()
+			.deserializeKey { String(it!!) }
+			.deserializeValue { String(it!!) }
+			.intercept { println(it) }
+			.pipe { it.copy(value = it.value!!.toUpperCase()) }
+			.consumer {
+				println("${it.topic} / ${it.partition} / ${it.offset}")
+				ConsumerResult.Succes("")
+			}
+			.build()
 
 		assertTrue(job.isActive)
 		job.cancel()
