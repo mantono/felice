@@ -25,7 +25,7 @@ class WorkerBuildetTest {
 			.pipe { it.copy(value = it.value!!.toUpperCase()) }
 			.consumer {
 				println("${it.topic} / ${it.partition} / ${it.offset}")
-				ConsumerResult.Succes("")
+				ConsumerResult.Succes
 			}
 			.build()
 

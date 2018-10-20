@@ -49,9 +49,9 @@ data class WorkerBuilder<K, V>(
 	fun consumer(consumer: MessageConsumer<K, V>): WorkerBuilder<K, V> =
 		copy(consumer = consumer)
 
-	fun consumer(consumer: suspend (Message<K, V>) -> ConsumerResult<*>): WorkerBuilder<K, V> {
+	fun consumer(consumer: suspend (Message<K, V>) -> ConsumerResult): WorkerBuilder<K, V> {
 		val consumerObject = object: MessageConsumer<K, V> {
-			override suspend fun consume(message: Message<K, V>): ConsumerResult<*> = consumer(message)
+			override suspend fun consume(message: Message<K, V>): ConsumerResult = consumer(message)
 		}
 		return copy(consumer = consumerObject)
 	}

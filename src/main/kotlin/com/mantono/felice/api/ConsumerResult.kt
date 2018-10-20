@@ -1,10 +1,10 @@
 package com.mantono.felice.api
 
-sealed class ConsumerResult<out T> {
-	data class Succes<out T>(val value: T): ConsumerResult<T>()
-	data class Retry<out T>(val exception: Throwable? = null): ConsumerResult<T>()
-	data class PermanentFailure<out T>(val message: String? = null): ConsumerResult<T>()
+sealed class ConsumerResult {
+	object Succes: ConsumerResult()
+	data class Retry(val message: String? = null): ConsumerResult()
+	data class PermanentFailure(val message: String? = null): ConsumerResult()
 }
 
-fun <T> Throwable.asRetry(): ConsumerResult.Retry<T> = ConsumerResult.Retry(this)
-fun <T> Throwable.asFailure(): ConsumerResult.PermanentFailure<T> = ConsumerResult.PermanentFailure(this.message)
+fun Throwable.asRetry(): ConsumerResult.Retry = ConsumerResult.Retry(this.message)
+fun Throwable.asFailure(): ConsumerResult.PermanentFailure = ConsumerResult.PermanentFailure(this.message)
