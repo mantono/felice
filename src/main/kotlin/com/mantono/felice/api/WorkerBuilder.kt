@@ -1,15 +1,18 @@
 package com.mantono.felice.api
 
 import com.mantono.felice.api.worker.FeliceWorker
-import com.mantono.felice.api.worker.Pipeline
 import com.mantono.felice.api.worker.Worker
 import org.apache.kafka.common.serialization.Deserializer
 
+private val defaultOptions: Map<String, Any> = mapOf(
+	"enable.auto.commit" to false,
+	"bootstrap.server" to "localhost:9092"
+)
+
 data class WorkerBuilder<K, V>(
 	private val topics: List<String> = emptyList(),
-	private val options: Map<String, Any> = emptyMap(),
-	private val interceptors: List<Interceptor<K, V>> = emptyList(),
-	private val pipeline: List<Pipeline<K, V>> = emptyList(),
+	private val options: Map<String, Any> = defaultOptions,
+	private val pipeline: List<Interceptor> = emptyList(),
 	private val keyDeserializer: Deserializer<K>? = null,
 	private val valueDeserializer: Deserializer<V>? = null,
 	private val consumer: MessageConsumer<K, V>? = null
@@ -27,24 +30,8 @@ data class WorkerBuilder<K, V>(
 	fun options(options: Map<String, Any>): WorkerBuilder<K, V>  =
 		copy(options = this.options + options)
 
-	fun interceptor(interceptor: Interceptor<K, V>): WorkerBuilder<K, V> =
-		copy(interceptors = this.interceptors + interceptor)
-
-	fun intercept(interceptor: (Message<K, V>) -> Unit): WorkerBuilder<K, V> {
-		val interceptObject = object : Interceptor<K, V> {
-			override fun intercept(message: Message<K, V>): Unit = interceptor(message)
-		}
-		return copy(interceptors = interceptors + interceptObject)
-	}
-
-	fun pipe(pipe: Pipeline<K, V>): WorkerBuilder<K, V> = copy(pipeline = pipeline + pipe)
-
-	fun pipe(pipe: (Message<K, V>) -> Message<K, V>): WorkerBuilder<K, V> {
-		val pipeObject = object : Pipeline<K, V> {
-			override fun pipe(message: Message<K, V>): Message<K, V> = pipe(message)
-		}
-		return copy(pipeline = pipeline + pipeObject)
-	}
+	fun intercept(interceptor: Interceptor): WorkerBuilder<K, V> =
+		copy(pipeline = this.pipeline + interceptor)
 
 	fun consumer(consumer: MessageConsumer<K, V>): WorkerBuilder<K, V> =
 		copy(consumer = consumer)
@@ -77,7 +64,7 @@ data class WorkerBuilder<K, V>(
 		FeliceWorker(
 			groupId = options["groupId"].toString(),
 			topics = topics.toSet(),
-			interceptors = interceptors,
+			pipeline = pipeline,
 			options = options,
 			deserializeKey = keyDeserializer!!,
 			deserializeValue = valueDeserializer!!,
