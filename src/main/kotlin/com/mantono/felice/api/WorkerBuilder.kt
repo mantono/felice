@@ -6,7 +6,9 @@ import org.apache.kafka.common.serialization.Deserializer
 
 private val defaultOptions: Map<String, Any> = mapOf(
 	"enable.auto.commit" to false,
-	"bootstrap.server" to "localhost:9092"
+	"bootstrap.servers" to "localhost:9092",
+	"key.deserializer" to "org.apache.kafka.common.serialization.ByteArrayDeserializer",
+	"value.deserializer" to "org.apache.kafka.common.serialization.ByteArrayDeserializer"
 )
 
 data class WorkerBuilder<K, V>(
@@ -19,7 +21,7 @@ data class WorkerBuilder<K, V>(
 ) {
 	fun groupId(groupId: String): WorkerBuilder<K, V> {
 		require(groupId.isNotBlank())
-		val groupOption: Pair<String, String> = "groupId" to groupId
+		val groupOption: Pair<String, String> = "group.id" to groupId
 		return copy(options = options + groupOption)
 	}
 	fun topic(vararg topics: String): WorkerBuilder<K, V> = copy(topics = this.topics + topics)
@@ -62,7 +64,7 @@ data class WorkerBuilder<K, V>(
 
 	private fun toWorker(): Worker<K, V> =
 		FeliceWorker(
-			groupId = options["groupId"].toString(),
+			groupId = options["group.id"].toString(),
 			topics = topics.toSet(),
 			pipeline = pipeline,
 			options = options,
@@ -73,7 +75,7 @@ data class WorkerBuilder<K, V>(
 
 	private fun verifyState() {
 		check(topics.isNotEmpty()) { "At least one topic must be given" }
-		check(options.contains("groupId")) { "Group id was not set" }
+		check(options.contains("group.id")) { "Group id was not set" }
 		check(keyDeserializer != null) { "Deserializer for key is not set" }
 		check(valueDeserializer != null) { "Deserializer for value is not set" }
 		check(consumer != null) { "MessageConsumer is not set" }
