@@ -4,5 +4,6 @@ import org.apache.kafka.common.TopicPartition
 
 data class MessageResult(
 	val result: ConsumerResult,
-	val topicPartition: TopicPartition
+	val topicPartition: TopicPartition,
+	val offset: Long
 )

@@ -10,12 +10,15 @@ import com.mantono.felice.api.worker.Worker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import org.apache.kafka.clients.consumer.KafkaConsumer
+import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.common.PartitionInfo
+import org.apache.kafka.common.TopicPartition
 import java.time.Duration
 import kotlin.coroutines.CoroutineContext
 
@@ -27,8 +30,12 @@ private fun <K, V> execute(worker: Worker<K, V>): CoroutineContext {
 	val kafkaConsumer: KafkaConsumer<K, V> = createKafkaConsumer(worker)
 	val threadCount: UInt = computeThreadCount(kafkaConsumer)
 	val scope: CoroutineScope = WorkerScope(threadCount)
+	log.debug { "Launching runner" }
 	scope.launch {
-		run(scope, worker, kafkaConsumer)
+		val work = Channel<Message<K, V>>(100)
+		log.debug { "Creating work actors" }
+		val results: ReceiveChannel<MessageResult> = work.work(16,scope, worker )
+		run(scope, worker, kafkaConsumer, work, results)
 	}
 	return scope.coroutineContext
 }
@@ -43,8 +50,10 @@ private fun <K, V> execute(worker: Worker<K, V>): CoroutineContext {
 //}
 
 private fun <K, V> KafkaConsumer<K, V>.partitions(): List<PartitionInfo> = this
-	.listTopics()
-	.flatMap { it.value }
+	.subscription()
+	.map { partitionsFor(it) }
+	.flatten()
+	.also { println("Found partition $it") }
 	.toList()
 
 private fun <K, V> computeThreadCount(consumer: KafkaConsumer<K, V>): UInt {
@@ -55,34 +64,43 @@ private fun <K, V> computeThreadCount(consumer: KafkaConsumer<K, V>): UInt {
 private fun min(u0: UInt, u1: UInt): UInt = if(u0 < u1) u0 else u1
 
 private fun <K, V> createKafkaConsumer(worker: Worker<K, V>): KafkaConsumer<K, V> {
-	return KafkaConsumer<K, V>(worker.options + ("group.id" to worker.groupId)).apply {
+	return KafkaConsumer<K, V>(worker.config).apply {
 		subscribe(worker.topics)
 	}
 }
 
 private tailrec suspend fun <K, V> run(
 	scope: CoroutineScope,
-	//consumeFunction: suspend (Message<K, V>) -> ConsumerResult,
 	worker: Worker<K, V>,
 	cons: KafkaConsumer<K, V>,
-	queue: Channel<MessageResult> = Channel(100)
-	//offsets: Map<TopicPartition, Long> = initOffsets(cons)
+	work: SendChannel<Message<K, V>>,
+	results: ReceiveChannel<MessageResult>
 ) {
 	if(!scope.isActive) {
+		log.info { "Cancelling current job" }
 		cons.close(Duration.ofSeconds(30))
-		queue.close()
+		work.close()
 		return
 	}
 
 	log.debug { "Starting poll" }
-	cons.poll(Duration.ofSeconds(10))
+	cons.poll(Duration.ofMillis(200))
 		.map { Message(it) }
-		.also { log.debug { "Processing message: $it" } }
+		.also { log.debug { "Received message: $it" } }
 		//.sortedBy { it.timestamp }
 		//.groupBy { "${it.topic}:${it.partition}" }
-		.forEach { launchConsumer(scope, worker, queue, it) }
+		.forEach { work.send(it) }
+		//.forEach { launchConsumer(scope, worker, results, it) }
 
-	run(scope, worker, cons, queue)
+	results.poll()?.let { result: MessageResult ->
+		val offsets: Map<TopicPartition, OffsetAndMetadata> = mapOf(
+			result.topicPartition to OffsetAndMetadata(result.offset)
+		)
+		cons.commitSync(offsets)
+	}
+
+
+	run(scope, worker, cons, work, results)
 }
 
 fun <K, V> launchConsumer(
@@ -92,6 +110,7 @@ fun <K, V> launchConsumer(
 	message: Message<K, V>
 ): Job = scope.launch {
 	val result: ConsumerResult = try {
+		log.debug { "Processing message $message" }
 		val pipedMessage: Message<K, V> = worker.pipeline.foldMessage(message)
 		worker.consume(pipedMessage).also { resultToPipe ->
 			worker.pipeline.forEach { it.onResult(resultToPipe) }
@@ -101,7 +120,7 @@ fun <K, V> launchConsumer(
 		ConsumerResult.Retry(e.message)
 	}
 
-	queue.send(MessageResult(result, message.topicPartition))
+	queue.send(MessageResult(result, message.topicPartition, message.offset))
 }
 
 internal fun Boolean.onTrue(execute: () -> Unit): Boolean {

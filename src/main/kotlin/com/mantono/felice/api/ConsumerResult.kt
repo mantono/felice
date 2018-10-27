@@ -1,7 +1,7 @@
 package com.mantono.felice.api
 
 sealed class ConsumerResult {
-	object Succes: ConsumerResult()
+	object Success: ConsumerResult()
 	data class Retry(val message: String? = null): ConsumerResult()
 	data class PermanentFailure(val message: String? = null): ConsumerResult()
 }

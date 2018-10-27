@@ -7,18 +7,16 @@ import com.mantono.felice.api.WorkerBuilder
 import com.mantono.felice.api.worker.Worker
 import com.mantono.felice.implementation.start
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.time.delay
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import java.time.Duration
+import java.util.*
 import kotlin.coroutines.CoroutineContext
 
-class WorkerBuildetTest {
+class WorkerBuilderTest {
 
 	@Test
 	fun testNormalControlFlow() {
@@ -36,13 +34,14 @@ class WorkerBuildetTest {
 			"value.serializer" to "org.apache.kafka.common.serialization.StringSerializer"
 		)
 
+		val rand = Random()
 		val prod = KafkaProducer<String, String>(producerOptions)
-		prod.send(ProducerRecord("topic1", "1", "Test"))
-		prod.send(ProducerRecord("topic1", "1", "Testd"))
-		prod.send(ProducerRecord("topic1", "2", "Testw"))
-		prod.send(ProducerRecord("topic1", "1", "Tests"))
-		prod.send(ProducerRecord("topic1", "2", "Tests"))
-		prod.send(ProducerRecord("topic1", "1", "Testx"))
+		prod.send(ProducerRecord("topic1", rand.nextInt().toString(), rand.nextInt().toString()))
+		prod.send(ProducerRecord("topic1", rand.nextInt().toString(), rand.nextInt().toString()))
+		prod.send(ProducerRecord("topic2", rand.nextInt().toString(), rand.nextInt().toString()))
+		prod.send(ProducerRecord("topic2", rand.nextInt().toString(), rand.nextInt().toString()))
+		prod.send(ProducerRecord("topic2", rand.nextInt().toString(), rand.nextInt().toString()))
+		prod.send(ProducerRecord("topic1", rand.nextInt().toString(), rand.nextInt().toString()))
 
 		Thread.sleep(400)
 
@@ -55,15 +54,15 @@ class WorkerBuildetTest {
 			.intercept(interceptor)
 			.consumer {
 				println("${it.topic} / ${it.partition} / ${it.offset}")
-				ConsumerResult.Succes
+				ConsumerResult.Success
 			}
 			.build()
 
 		val context: CoroutineContext = worker.start()
 
-		Thread.sleep(1000L)
+		Thread.sleep(35_000L)
 		assertTrue(context.isActive)
-		assertTrue(context.cancel())
+		context.cancel()
 		assertFalse(context.isActive)
 	}
 

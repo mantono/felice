@@ -1,19 +1,12 @@
 package com.mantono.felice.api
 
-import com.mantono.felice.api.worker.FeliceWorker
+import com.mantono.felice.api.worker.KafkaConfig
 import com.mantono.felice.api.worker.Worker
 import org.apache.kafka.common.serialization.Deserializer
 
-private val defaultOptions: Map<String, Any> = mapOf(
-	"enable.auto.commit" to false,
-	"bootstrap.servers" to "localhost:9092",
-	"key.deserializer" to "org.apache.kafka.common.serialization.ByteArrayDeserializer",
-	"value.deserializer" to "org.apache.kafka.common.serialization.ByteArrayDeserializer"
-)
-
 data class WorkerBuilder<K, V>(
 	private val topics: List<String> = emptyList(),
-	private val options: Map<String, Any> = defaultOptions,
+	private val config: Map<String, Any> = KafkaConfig.Consumer.default,
 	private val pipeline: List<Interceptor> = emptyList(),
 	private val keyDeserializer: Deserializer<K>? = null,
 	private val valueDeserializer: Deserializer<V>? = null,
@@ -22,15 +15,16 @@ data class WorkerBuilder<K, V>(
 	fun groupId(groupId: String): WorkerBuilder<K, V> {
 		require(groupId.isNotBlank())
 		val groupOption: Pair<String, String> = "group.id" to groupId
-		return copy(options = options + groupOption)
+		return copy(config = config + groupOption)
 	}
+
 	fun topic(vararg topics: String): WorkerBuilder<K, V> = copy(topics = this.topics + topics)
 
 	fun option(key: String, value: String): WorkerBuilder<K, V> =
-		copy(options = this.options + (key to value))
+		copy(config = this.config + (key to value))
 
-	fun options(options: Map<String, Any>): WorkerBuilder<K, V>  =
-		copy(options = this.options + options)
+	fun config(config: Map<String, Any>): WorkerBuilder<K, V>  =
+		copy(config = this.config + config)
 
 	fun intercept(interceptor: Interceptor): WorkerBuilder<K, V> =
 		copy(pipeline = this.pipeline + interceptor)
@@ -63,11 +57,10 @@ data class WorkerBuilder<K, V>(
 	}
 
 	private fun toWorker(): Worker<K, V> =
-		FeliceWorker(
-			groupId = options["group.id"].toString(),
+		Worker(
 			topics = topics.toSet(),
 			pipeline = pipeline,
-			options = options,
+			config = config,
 			deserializeKey = keyDeserializer!!,
 			deserializeValue = valueDeserializer!!,
 			consumer = consumer!!
@@ -75,10 +68,14 @@ data class WorkerBuilder<K, V>(
 
 	private fun verifyState() {
 		check(topics.isNotEmpty()) { "At least one topic must be given" }
-		check(options.contains("group.id")) { "Group id was not set" }
 		check(keyDeserializer != null) { "Deserializer for key is not set" }
 		check(valueDeserializer != null) { "Deserializer for value is not set" }
 		check(consumer != null) { "MessageConsumer is not set" }
+		KafkaConfig.Consumer.required.forEach {
+			require(it in config.keys) {
+				"Missing value for required consumer config setting: $it"
+			}
+		}
 	}
 }
 
