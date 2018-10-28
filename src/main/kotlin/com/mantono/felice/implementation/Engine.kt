@@ -20,34 +20,91 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.common.PartitionInfo
 import org.apache.kafka.common.TopicPartition
 import java.time.Duration
+import java.util.concurrent.Semaphore
 import kotlin.coroutines.CoroutineContext
 
 private val log = KotlinLogging.logger("felice-engine")
 
 fun <K, V> Worker<K, V>.start(): CoroutineContext = execute(this)
 
+class WorkDistributor<K, V>(
+	private val worker: Worker<K, V>,
+	private val consumer: KafkaConsumer<K, V>,
+	private val work: Channel<Message<K, V>> = Channel(200),
+	private val results: Channel<MessageResult> = Channel(200)
+): ReceiveChannel<MessageResult> by results {
+	private val allowStart = Semaphore(1)
+
+	fun start(scope: CoroutineScope): Boolean {
+		return allowStart.tryAcquire().onTrue {
+			scope.launch { work(scope) }
+		}
+	}
+
+	private tailrec suspend fun work(scope: CoroutineScope) {
+		if(!scope.isActive) {
+			log.info { "Cancelling current job" }
+			consumer.close(Duration.ofSeconds(30))
+			results.close()
+			work.close()
+			return
+		}
+
+		log.debug { "Polling..." }
+		consumer.poll(Duration.ofSeconds(10))
+			.map { Message(it) }
+			.onEach { log.debug { "Received message: $it" } }
+			.forEach { launchConsumer(scope, worker, results, it) }
+
+		work(scope)
+	}
+}
+
+class ResultHandler<K, V>(
+	private val results: ReceiveChannel<MessageResult>,
+	private val consumer: KafkaConsumer<K, V>
+) {
+	private val allowStart = Semaphore(1)
+
+	fun start(scope: CoroutineScope): Boolean {
+		return allowStart.tryAcquire().onTrue {
+			scope.launch { work(scope) }
+		}
+	}
+
+	private tailrec suspend fun work(scope: CoroutineScope) {
+		if(!scope.isActive) {
+			return
+		}
+
+		val result: MessageResult = results.receive()
+		log.debug { "Got result $result" }
+		val offset: Long = when(result.result) {
+			ConsumerResult.Success -> result.offset + 1
+			is ConsumerResult.PermanentFailure -> result.offset + 1
+			is ConsumerResult.Retry -> result.offset
+		}
+
+		val offsetAndMetadata = OffsetAndMetadata(offset)
+		consumer.commitSync(mapOf(result.topicPartition to offsetAndMetadata))
+		log.debug { "Offsets committed for ${result.topicPartition}" }
+
+		work(scope)
+	}
+}
+
 private fun <K, V> execute(worker: Worker<K, V>): CoroutineContext {
 	val kafkaConsumer: KafkaConsumer<K, V> = createKafkaConsumer(worker)
 	val threadCount: UInt = computeThreadCount(kafkaConsumer)
 	val scope: CoroutineScope = WorkerScope(threadCount)
-	log.debug { "Launching runner" }
-	scope.launch {
-		val work = Channel<Message<K, V>>(100)
-		log.debug { "Creating work actors" }
-		val results: ReceiveChannel<MessageResult> = work.work(16,scope, worker )
-		run(scope, worker, kafkaConsumer, work, results)
-	}
+	log.debug { "Launching work distributor" }
+	val distributor = WorkDistributor(worker, kafkaConsumer)
+	log.debug { "Launching result handler" }
+	val resultHandler = ResultHandler(distributor, kafkaConsumer)
+	distributor.start(scope)
+	resultHandler.start(scope)
 	return scope.coroutineContext
 }
-//
-//private fun <K, V> createActors(
-//	scope: CoroutineScope,
-//	kafkaConsumer: KafkaConsumer<K, V>,
-//	worker: Worker<K, V>
-//): Map<TopicPartition, ConsumerActor<K, V>> {
-//	kafkaConsumer.partitions().asSequence()
-//		.map {  }
-//}
 
 private fun <K, V> KafkaConsumer<K, V>.partitions(): List<PartitionInfo> = this
 	.subscription()
@@ -87,10 +144,7 @@ private tailrec suspend fun <K, V> run(
 	cons.poll(Duration.ofMillis(200))
 		.map { Message(it) }
 		.also { log.debug { "Received message: $it" } }
-		//.sortedBy { it.timestamp }
-		//.groupBy { "${it.topic}:${it.partition}" }
 		.forEach { work.send(it) }
-		//.forEach { launchConsumer(scope, worker, results, it) }
 
 	results.poll()?.let { result: MessageResult ->
 		val offsets: Map<TopicPartition, OffsetAndMetadata> = mapOf(

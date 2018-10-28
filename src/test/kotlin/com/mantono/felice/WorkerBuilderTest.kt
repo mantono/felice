@@ -4,6 +4,7 @@ import com.mantono.felice.api.ConsumerResult
 import com.mantono.felice.api.Message
 import com.mantono.felice.api.Interceptor
 import com.mantono.felice.api.WorkerBuilder
+import com.mantono.felice.api.worker.KafkaConfig
 import com.mantono.felice.api.worker.Worker
 import com.mantono.felice.implementation.start
 import kotlinx.coroutines.cancel
@@ -28,20 +29,22 @@ class WorkerBuilderTest {
 			}
 		}
 
-		val producerOptions = mapOf<String, String>(
+		val producerOptions = KafkaConfig.Producer.default + ("bootstrap.servers" to "kafka:9092")
+
+			/*mapOf<String, String>(
 			"bootstrap.servers" to "kafka:9092",
 			"key.serializer" to "org.apache.kafka.common.serialization.StringSerializer",
 			"value.serializer" to "org.apache.kafka.common.serialization.StringSerializer"
-		)
+		)*/
 
 		val rand = Random()
-		val prod = KafkaProducer<String, String>(producerOptions)
-		prod.send(ProducerRecord("topic1", rand.nextInt().toString(), rand.nextInt().toString()))
-		prod.send(ProducerRecord("topic1", rand.nextInt().toString(), rand.nextInt().toString()))
-		prod.send(ProducerRecord("topic2", rand.nextInt().toString(), rand.nextInt().toString()))
-		prod.send(ProducerRecord("topic2", rand.nextInt().toString(), rand.nextInt().toString()))
-		prod.send(ProducerRecord("topic2", rand.nextInt().toString(), rand.nextInt().toString()))
-		prod.send(ProducerRecord("topic1", rand.nextInt().toString(), rand.nextInt().toString()))
+		val prod = KafkaProducer<ByteArray, ByteArray>(producerOptions)
+		prod.send(ProducerRecord("topic1", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
+		prod.send(ProducerRecord("topic1", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
+		prod.send(ProducerRecord("topic2", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
+		prod.send(ProducerRecord("topic2", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
+		prod.send(ProducerRecord("topic2", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
+		prod.send(ProducerRecord("topic1", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
 
 		Thread.sleep(400)
 

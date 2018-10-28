@@ -22,7 +22,7 @@ private val log = KotlinLogging.logger("actors")
 
 }*/
 
-internal suspend fun <K, V> ReceiveChannel<Message<K, V>>.work(
+/*internal suspend fun <K, V> ReceiveChannel<Message<K, V>>.work(
 	workers: Int,
 	scope: CoroutineScope,
 	worker: Worker<K, V>
@@ -35,13 +35,13 @@ internal suspend fun <K, V> ReceiveChannel<Message<K, V>>.work(
 		}
 	}
 	return results
-}
+}*/
 
-internal suspend fun <K, V> ReceiveChannel<Message<K, V>>.work(
+/*internal suspend fun <K, V> work(
 	scope: CoroutineScope,
 	worker: Worker<K, V>,
-	results: SendChannel<MessageResult>
-) {
+	message: Message<K, V>
+): Def {
 	for(msg in this) {
 		log.debug { "Actor received message $msg" }
 		if(!scope.isActive) {
@@ -62,7 +62,7 @@ internal suspend fun <K, V> ReceiveChannel<Message<K, V>>.work(
 		log.debug { "Result $msg" }
 		results.send(result)
 	}
-}
+}*/
 
 
 /*
