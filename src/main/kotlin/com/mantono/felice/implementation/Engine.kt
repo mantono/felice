@@ -18,7 +18,6 @@ import mu.KotlinLogging
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.common.PartitionInfo
-import org.apache.kafka.common.TopicPartition
 import java.time.Duration
 import java.util.concurrent.Semaphore
 import kotlin.coroutines.CoroutineContext
@@ -77,6 +76,7 @@ class ResultHandler<K, V>(
 			return
 		}
 
+		log.debug { "Waiting for results" }
 		val result: MessageResult = results.receive()
 		log.debug { "Got result $result" }
 		val offset: Long = when(result.result) {
@@ -126,37 +126,6 @@ private fun <K, V> createKafkaConsumer(worker: Worker<K, V>): KafkaConsumer<K, V
 	}
 }
 
-private tailrec suspend fun <K, V> run(
-	scope: CoroutineScope,
-	worker: Worker<K, V>,
-	cons: KafkaConsumer<K, V>,
-	work: SendChannel<Message<K, V>>,
-	results: ReceiveChannel<MessageResult>
-) {
-	if(!scope.isActive) {
-		log.info { "Cancelling current job" }
-		cons.close(Duration.ofSeconds(30))
-		work.close()
-		return
-	}
-
-	log.debug { "Starting poll" }
-	cons.poll(Duration.ofMillis(200))
-		.map { Message(it) }
-		.also { log.debug { "Received message: $it" } }
-		.forEach { work.send(it) }
-
-	results.poll()?.let { result: MessageResult ->
-		val offsets: Map<TopicPartition, OffsetAndMetadata> = mapOf(
-			result.topicPartition to OffsetAndMetadata(result.offset)
-		)
-		cons.commitSync(offsets)
-	}
-
-
-	run(scope, worker, cons, work, results)
-}
-
 fun <K, V> launchConsumer(
 	scope: CoroutineScope,
 	worker: Worker<K, V>,
@@ -174,6 +143,7 @@ fun <K, V> launchConsumer(
 		ConsumerResult.Retry(e.message)
 	}
 
+	log.debug { "Sending $result to result queue" }
 	queue.send(MessageResult(result, message.topicPartition, message.offset))
 }
 
