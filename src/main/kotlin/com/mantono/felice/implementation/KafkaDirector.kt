@@ -56,7 +56,10 @@ class KafkaDirector<K, V>(
 		consumer.poll(Duration.ofSeconds(3))
 			.map { Message(it) }
 			.onEach { log.debug { "Received message: $it" } }
-			.forEach { work.send(it) }
+			.forEach {
+				work.send(it)
+				log.debug { "Sent message $it" }
+			}
 
 		pollWork(scope)
 	}

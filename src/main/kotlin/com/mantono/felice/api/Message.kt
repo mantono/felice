@@ -37,6 +37,8 @@ data class Message<K, V>(
 	)
 
 	fun nextAttempt(): Message<K, V> = this.copy(attempts = attempts + 1)
+
+	override fun toString(): String = "$topic|$partition|$offset"
 }
 
 private fun Headers.toMap(): Map<String, ByteArray> = this

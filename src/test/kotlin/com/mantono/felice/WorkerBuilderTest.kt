@@ -62,6 +62,7 @@ class ddWorkerBuilderTest {
 			.build()
 
 		val context: CoroutineContext = worker.start()
+		println(context.isActive)
 
 		Thread.sleep(35_000L)
 		assertTrue(context.isActive)

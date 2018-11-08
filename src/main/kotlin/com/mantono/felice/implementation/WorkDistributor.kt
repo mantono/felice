@@ -30,6 +30,7 @@ class WorkDistributor<K, V>(
 
 		log.debug { "Polling..." }
 		val message: Message<K, V> = work.receive()
+		log.debug { "Received message ${message.topicPartition}" }
 		launchConsumer(scope, worker, work, message)
 
 		work(scope)
