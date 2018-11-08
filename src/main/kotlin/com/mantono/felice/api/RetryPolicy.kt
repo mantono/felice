@@ -1,8 +1,6 @@
 package com.mantono.felice.api
 
-import kotlinx.coroutines.time.delay
 import java.time.Duration
-import java.time.Instant
 
 sealed class RetryPolicy {
 	/**
@@ -29,32 +27,13 @@ sealed class RetryPolicy {
 		return initialBackOff.plus(accumulatedBuildUp).coerceAtMost(maxWait)
 	}
 
-	fun shouldRetry(result: MessageResult<*, *>): Retry {
+	fun shouldRetry(result: MessageResult<*, *>): Boolean {
 		val isNotTransitory: Boolean = result.result !is ConsumerResult.TransitoryFailure
 		val hasUsedAllAttempts: Boolean = this is Limited && this.attempts <= result.message.attempts
-		val waitTime: Duration = waitTime(result.message.attempts)
-		val waitUntil: Instant = result.timestamp.plus(waitTime)
-
 		return when {
-			isNotTransitory -> Retry.Never
-			hasUsedAllAttempts -> Retry.Never
-			waitUntil.isAfter(Instant.now()) -> Retry.Wait(waitUntil)
-			else -> Retry.Now
-		}
-	}
-}
-
-sealed class Retry {
-	object Now: Retry()
-	object Never: Retry()
-	data class Wait(val until: Instant): Retry()
-
-	suspend fun waitAndRetry(): Boolean = when(this) {
-		Never -> false
-		Now -> true
-		is Wait -> true.also {
-			val waitTime = Duration.between(Instant.now(), until).coerceAtLeast(Duration.ZERO)
-			delay(waitTime)
+			isNotTransitory -> false
+			hasUsedAllAttempts -> false
+			else -> true
 		}
 	}
 }
