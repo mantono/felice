@@ -54,7 +54,7 @@ private val log = KotlinLogging.logger("actors")
 			worker.pipeline.forEach { it.onResult(consumerResult) }
 			MessageResult(consumerResult, msg.topicPartition, msg.offset)
 		} catch(e: Throwable) {
-			val consumerResult = ConsumerResult.Retry(e.message)
+			val consumerResult = ConsumerResult.TransitoryFailure(e.message)
 			e.printStackTrace()
 			MessageResult(consumerResult, msg.topicPartition, msg.offset)
 		}

@@ -11,7 +11,8 @@ data class Message<K, V>(
 	val topic: String,
 	val headers: Map<String, ByteArray>,
 	val offset: Long,
-	val partition: Int
+	val partition: Int,
+	val attempts: Long = 0
 ) {
 	val topicPartition = TopicPartition(topic, partition)
 
@@ -34,6 +35,8 @@ data class Message<K, V>(
 		offset = message.offset(),
 		partition = message.partition()
 	)
+
+	fun nextAttempt(): Message<K, V> = this.copy(attempts = attempts + 1)
 }
 
 private fun Headers.toMap(): Map<String, ByteArray> = this

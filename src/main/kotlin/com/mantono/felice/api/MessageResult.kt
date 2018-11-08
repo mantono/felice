@@ -1,9 +1,11 @@
 package com.mantono.felice.api
 
-import org.apache.kafka.common.TopicPartition
+import java.time.Instant
 
-data class MessageResult(
+data class MessageResult<K, V>(
 	val result: ConsumerResult,
-	val topicPartition: TopicPartition,
-	val offset: Long
-)
+	val message: Message<K, V>,
+	val timestamp: Instant = Instant.now()
+) {
+	val nextOffset: Long = message.offset + 1
+}

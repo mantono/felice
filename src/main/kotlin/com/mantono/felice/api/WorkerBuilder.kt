@@ -10,7 +10,8 @@ data class WorkerBuilder<K, V>(
 	private val pipeline: List<Interceptor> = emptyList(),
 	private val keyDeserializer: Deserializer<K>? = null,
 	private val valueDeserializer: Deserializer<V>? = null,
-	private val consumer: MessageConsumer<K, V>? = null
+	private val consumer: MessageConsumer<K, V>? = null,
+	private val retryPolicy: RetryPolicy = Infinite
 ) {
 	fun groupId(groupId: String): WorkerBuilder<K, V> {
 		require(groupId.isNotBlank())
@@ -51,6 +52,9 @@ data class WorkerBuilder<K, V>(
 	fun deserializeValue(deserializer: (ByteArray?) -> V): WorkerBuilder<K, V> =
 		this.copy(valueDeserializer = createDeserializer(deserializer))
 
+	fun retryPolicy(retryPolicy: RetryPolicy): WorkerBuilder<K, V> =
+		this.copy(retryPolicy = retryPolicy)
+
 	fun build(): Worker<K, V> {
 		verifyState()
 		return toWorker()
@@ -63,6 +67,7 @@ data class WorkerBuilder<K, V>(
 			config = config,
 			deserializeKey = keyDeserializer!!,
 			deserializeValue = valueDeserializer!!,
+			retryPolicy = retryPolicy,
 			consumer = consumer!!
 		)
 
