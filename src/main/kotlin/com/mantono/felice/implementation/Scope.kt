@@ -13,8 +13,8 @@ class WorkerScope(threads: UInt): CoroutineScope {
 }
 
 fun dispatcher(threads: UInt = 2u): CoroutineDispatcher {
-	val coreSize: Int = (threads.toInt() / 4).coerceAtLeast(1)
-	val maxSize: Int = threads.toInt()
+	val coreSize: Int = (threads.toInt() / 4).coerceAtLeast(2)
+	val maxSize: Int = threads.toInt().coerceAtLeast(coreSize)
 	val threadPool = ThreadPoolExecutor(coreSize, maxSize, 120L, TimeUnit.SECONDS, ArrayBlockingQueue(maxSize*100))
 	return threadPool.asCoroutineDispatcher()
 }

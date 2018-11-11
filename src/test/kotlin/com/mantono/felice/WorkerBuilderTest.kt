@@ -1,8 +1,9 @@
 package com.mantono.felice
 
 import com.mantono.felice.api.ConsumerResult
-import com.mantono.felice.api.Message
 import com.mantono.felice.api.Interceptor
+import com.mantono.felice.api.Limited
+import com.mantono.felice.api.Message
 import com.mantono.felice.api.WorkerBuilder
 import com.mantono.felice.api.worker.KafkaConfig
 import com.mantono.felice.api.worker.Worker
@@ -44,6 +45,7 @@ class ddWorkerBuilderTest {
 		prod.send(ProducerRecord("topic2", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
 		prod.send(ProducerRecord("topic2", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
 		prod.send(ProducerRecord("topic2", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
+		//prod.send(ProducerRecord("topic1", rand.nextInt().toString().toByteArray(), "42".toByteArray()))
 		prod.send(ProducerRecord("topic1", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
 
 		Thread.sleep(400)
@@ -55,14 +57,16 @@ class ddWorkerBuilderTest {
 			.deserializeKey { String(it!!) }
 			.deserializeValue { String(it!!) }
 			.intercept(interceptor)
+			.retryPolicy(Limited(5))
 			.consumer {
 				println("${it.topic} / ${it.partition} / ${it.offset}")
+				//if(it.value == "42")
+				//	return@consumer ConsumerResult.TransitoryFailure("42")
 				ConsumerResult.Success
 			}
 			.build()
 
 		val context: CoroutineContext = worker.start()
-		println(context.isActive)
 
 		Thread.sleep(35_000L)
 		assertTrue(context.isActive)

@@ -39,6 +39,12 @@ sealed class ConsumerResult {
 		 */
 		val message: String? = null
 	): ConsumerResult()
+
+	override fun toString(): String = when(this) {
+		Success -> "Success"
+		is PermanentFailure -> "PermanentFailure${message?.let { ": $it" }}"
+		is TransitoryFailure -> "TransitoryFailure${message?.let { ": $it" }}"
+	}
 }
 
 fun Throwable.asTransitory(): ConsumerResult.TransitoryFailure = ConsumerResult.TransitoryFailure(this.message)

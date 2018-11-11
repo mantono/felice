@@ -7,6 +7,6 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
 
-interface Director<K, V> : ReceiveChannel<Message<K, V>>, SendChannel<MessageResult<K, V>> {
+interface Director : SendChannel<MessageResult> {
 	fun start(scope: CoroutineScope = GlobalScope): Boolean
 }

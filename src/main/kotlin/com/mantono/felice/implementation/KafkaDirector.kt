@@ -1,13 +1,11 @@
 package com.mantono.felice.implementation
 
 import com.mantono.felice.api.ConsumerResult
-import com.mantono.felice.api.Infinite
 import com.mantono.felice.api.Message
 import com.mantono.felice.api.MessageResult
-import com.mantono.felice.api.RetryPolicy
+import com.mantono.felice.api.worker.Worker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -22,22 +20,19 @@ private val log = KotlinLogging.logger("kafka-director")
 
 class KafkaDirector<K, V>(
 	private val consumer: KafkaConsumer<K, V>,
-	private val retryPolicy: RetryPolicy,
-	private val work: Channel<Message<K, V>> = Channel(1000),
-	private val results: Channel<MessageResult<K, V>> = Channel(1000)
+	private val worker: Worker<K, V>,
+	private val results: Channel<MessageResult> = Channel(1000)
 ):
-	Director<K, V>,
-	ReceiveChannel<Message<K, V>> by work,
-	SendChannel<MessageResult<K, V>> by results {
-
-	constructor(consumer: KafkaConsumer<K, V>, retryPolicy: RetryPolicy = Infinite, bufferSize: Int = 1_000):
-			this(consumer, retryPolicy, Channel(bufferSize), Channel(bufferSize))
+	Director,
+	SendChannel<MessageResult> by results {
 
 	private val allowStart = Semaphore(1)
+
 	override fun start(scope: CoroutineScope): Boolean {
 		return allowStart.tryAcquire().onTrue {
 			scope.launch {
-				pollWork(scope)
+				val actors = ActorSwarm(worker, results, scope)
+				pollWork(scope, actors)
 			}
 			scope.launch {
 				processResult(scope)
@@ -45,10 +40,9 @@ class KafkaDirector<K, V>(
 		}
 	}
 
-	private tailrec suspend fun pollWork(scope: CoroutineScope) {
+	private tailrec suspend fun pollWork(scope: CoroutineScope, actors: ActorSwarm<K, V>) {
 		if(!scope.isActive) {
 			consumer.close()
-			work.close()
 			results.close()
 			return
 		}
@@ -57,11 +51,11 @@ class KafkaDirector<K, V>(
 			.map { Message(it) }
 			.onEach { log.debug { "Received message: $it" } }
 			.forEach {
-				work.send(it)
+				actors.send(it)
 				log.debug { "Sent message $it" }
 			}
 
-		pollWork(scope)
+		pollWork(scope, actors)
 	}
 
 	private tailrec suspend fun processResult(scope: CoroutineScope) {
@@ -69,28 +63,24 @@ class KafkaDirector<K, V>(
 			return
 		}
 
-		val result: MessageResult<K, V> = results.receive()
-		val offset = OffsetAndMetadata(result.nextOffset)
+		val result: MessageResult = results.receive()
+		val offset = OffsetAndMetadata(result.offset + 1)
 		logResult(result)
-		if(!retryPolicy.shouldRetry(result)) {
-			log.debug { "Offset (${offset.offset()}) committed for ${result.message.topicPartition}" }
-			consumer.commitSync(mapOf(result.message.topicPartition to offset))
-		} else {
-			log.debug { "Retrying message for ${result.message.topicPartition} at ${offset.offset()}" }
-			work.send(result.message)
-		}
+		consumer.commitSync(mapOf(result.topicPartition to offset))
+		log.debug { "Offset (${offset.offset()}) committed for ${result.topicPartition}" }
 		processResult(scope)
 	}
 
-	private fun logResult(result: MessageResult<K, V>) {
-		val tp: TopicPartition = result.message.topicPartition
-		when(val res = result.result) {
+	private fun logResult(result: MessageResult) {
+		val tp: TopicPartition = result.topicPartition
+		val msg = "${result.result} [$tp, offset ${result.offset}]"
+		when(result.result) {
 			ConsumerResult.Success ->
-				log.debug { "Success: $tp" }
+				log.debug { msg }
 			is ConsumerResult.PermanentFailure ->
-				log.error { "Got permanent failure when processing job: ${res.message} for $tp" }
+				log.error { msg }
 			is ConsumerResult.TransitoryFailure ->
-				log.error { "Got transitory failure when processing job: ${res.message} for $tp" }
+				log.error { msg }
 		}
 	}
 }

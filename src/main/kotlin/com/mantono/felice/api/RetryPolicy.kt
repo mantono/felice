@@ -27,9 +27,9 @@ sealed class RetryPolicy {
 		return initialBackOff.plus(accumulatedBuildUp).coerceAtMost(maxWait)
 	}
 
-	fun shouldRetry(result: MessageResult<*, *>): Boolean {
+	fun shouldRetry(result: MessageResult): Boolean {
 		val isNotTransitory: Boolean = result.result !is ConsumerResult.TransitoryFailure
-		val hasUsedAllAttempts: Boolean = this is Limited && this.attempts <= result.message.attempts
+		val hasUsedAllAttempts: Boolean = this is Limited && this.attempts <= result.attempts
 		return when {
 			isNotTransitory -> false
 			hasUsedAllAttempts -> false
