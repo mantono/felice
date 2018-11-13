@@ -3,7 +3,9 @@ package com.mantono.felice.implementation
 import com.mantono.felice.api.ConsumerResult
 import com.mantono.felice.api.Message
 import com.mantono.felice.api.MessageResult
+import com.mantono.felice.api.worker.Connection
 import com.mantono.felice.api.worker.Worker
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.SendChannel
@@ -19,7 +21,7 @@ import java.util.concurrent.Semaphore
 private val log = KotlinLogging.logger("kafka-director")
 
 class KafkaDirector<K, V>(
-	private val consumer: KafkaConsumer<K, V>,
+	private val consumer: Connection<K, V>,
 	private val worker: Worker<K, V>,
 	private val results: Channel<MessageResult> = Channel(1000)
 ):
@@ -47,8 +49,7 @@ class KafkaDirector<K, V>(
 			return
 		}
 
-		consumer.poll(Duration.ofSeconds(3))
-			.map { Message(it) }
+		consumer.poll(Duration.ofSeconds(1))
 			.onEach { log.debug { "Received message: $it" } }
 			.forEach {
 				actors.send(it)
@@ -64,10 +65,8 @@ class KafkaDirector<K, V>(
 		}
 
 		val result: MessageResult = results.receive()
-		val offset = OffsetAndMetadata(result.offset + 1)
 		logResult(result)
-		consumer.commitSync(mapOf(result.topicPartition to offset))
-		log.debug { "Offset (${offset.offset()}) committed for ${result.topicPartition}" }
+		consumer.commit(result)
 		processResult(scope)
 	}
 

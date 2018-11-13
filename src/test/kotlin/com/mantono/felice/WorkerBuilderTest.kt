@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test
 import java.util.*
 import kotlin.coroutines.CoroutineContext
 
-class ddWorkerBuilderTest {
+class WorkerBuilderTest {
 
 	@Test
 	fun testNormalControlFlow() {
@@ -73,6 +73,4 @@ class ddWorkerBuilderTest {
 		context.cancel()
 		assertFalse(context.isActive)
 	}
-
-
 }
