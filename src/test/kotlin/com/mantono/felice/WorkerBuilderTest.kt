@@ -68,7 +68,7 @@ class WorkerBuilderTest {
 
 		val context: CoroutineContext = worker.start()
 
-		Thread.sleep(35_000L)
+		Thread.sleep(65_000L)
 		assertTrue(context.isActive)
 		context.cancel()
 		assertFalse(context.isActive)
