@@ -33,10 +33,12 @@ class KafkaDirector<K, V>(
 	override fun start(scope: CoroutineScope): Boolean {
 		return allowStart.tryAcquire().onTrue {
 			scope.launch {
+				log.info { "Created actor swarm" }
 				val actors = ActorSwarm(worker, results, scope)
 				pollWork(scope, actors)
 			}
 			scope.launch {
+				log.info { "Created result processor" }
 				processResult(scope)
 			}
 		}
@@ -46,6 +48,7 @@ class KafkaDirector<K, V>(
 		if(!scope.isActive) {
 			consumer.close()
 			results.close()
+			log.info { "Poll work exits" }
 			return
 		}
 
@@ -61,6 +64,7 @@ class KafkaDirector<K, V>(
 
 	private tailrec suspend fun processResult(scope: CoroutineScope) {
 		if(!scope.isActive) {
+			log.info { "Process results exits" }
 			return
 		}
 

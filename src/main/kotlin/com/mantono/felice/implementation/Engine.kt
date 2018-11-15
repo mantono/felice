@@ -5,6 +5,7 @@ package com.mantono.felice.implementation
 import com.mantono.felice.api.worker.Connection
 import com.mantono.felice.api.worker.Worker
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.runBlocking
 import mu.KotlinLogging
 import org.apache.kafka.clients.consumer.KafkaConsumer
@@ -36,7 +37,7 @@ private fun <K, V> createKafkaConsumer(worker: Worker<K, V>): Connection<K, V> {
 	val kc = KafkaConsumer<K, V>(worker.config).apply {
 		subscribe(worker.topics)
 	}
-	return KafkaConnection(kc)
+	return KafkaConnection(kc, CoroutineScope(Job()))
 }
 
 internal fun Boolean.onTrue(execute: () -> Unit): Boolean {

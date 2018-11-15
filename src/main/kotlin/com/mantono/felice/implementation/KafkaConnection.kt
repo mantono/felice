@@ -5,11 +5,11 @@ import com.mantono.felice.api.MessageResult
 import com.mantono.felice.api.worker.Connection
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.time.delay
+import kotlinx.coroutines.time.withTimeout
 import mu.KotlinLogging
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
@@ -19,18 +19,17 @@ import java.util.concurrent.Semaphore
 
 private val log = KotlinLogging.logger("kafka-connection")
 
-private typealias PartitionOffset = Pair<TopicPartition, OffsetAndMetadata>
-
 class KafkaConnection<K, V>(
 	private val consumer: KafkaConsumer<K, V>,
-	offsetsBuffer: Int = 1_000
+	private val scope: CoroutineScope
 ): Connection<K, V> {
-	private val mutex = Mutex()
-	private val offsets = Channel<PartitionOffset>(offsetsBuffer)
+	private val consumerMutex = Mutex()
+	private val offsets: MutableMap<TopicPartition, OffsetAndMetadata> = HashMap(16)
+	private val offsetsMutex = Mutex()
 	private val initiateCommitting = Semaphore(1)
 
 	override suspend fun poll(duration: Duration): Sequence<Message<K, V>> {
-		return mutex.onAcquire {
+		return consumerMutex.onAcquire {
 			consumer
 				.poll(duration)
 				.map { Message(it) }
@@ -39,48 +38,48 @@ class KafkaConnection<K, V>(
 	}
 
 	override suspend fun commit(result: MessageResult) {
-		val offset = OffsetAndMetadata(result.offset + 1)
-		offsets.send(result.topicPartition to offset)
+		offsetsMutex.onAcquire {
+			offsets[result.topicPartition] = OffsetAndMetadata(result.offset + 1)
+		}
 		initiateCommitting.tryAcquire().onTrue {
-			GlobalScope.launch {
+			scope.launch {
 				pollOffsets(this)
 			}
 		}
 	}
 
-	private tailrec suspend fun pollOffsets(
-		scope: CoroutineScope,
-		polledOffsets: MutableMap<TopicPartition, OffsetAndMetadata> = HashMap(8),
-		pollAttempts: Int = 0
-	) {
+	private tailrec suspend fun pollOffsets(scope: CoroutineScope) {
 		if(!scope.isActive) {
 			log.info { "Offset committer exits" }
-			offsets.close()
+			initiateCommitting.release()
 			return
 		}
 
-		delay(Duration.ofMillis(50L))
-		offsets.poll()?.let { polledOffsets.put(it.first, it.second) }
-		if(pollAttempts > 100 && polledOffsets.isNotEmpty()) {
-			mutex.onAcquire {
-				log.debug { "Acquired mutex" }
-				consumer.commitSync(polledOffsets, Duration.ofSeconds(10))
-				polledOffsets.forEach { topicPartition, offsetAndMetadata ->
-					log.info { "Committing $topicPartition / ${offsetAndMetadata.offset()}" }
+		try {
+			delay(Duration.ofSeconds(30))
+			if(offsets.isNotEmpty()) {
+				log.debug { "Will commit offsets" }
+				onAcquire(offsetsMutex, consumerMutex) {
+					log.debug { "Acquired mutexes" }
+					consumer.commitSync(offsets, Duration.ofSeconds(10))
+					log.debug { "Committed offsets: $offsets" }
+					offsets.clear()
 				}
+			} else {
+				log.debug { "No offsets to commit" }
 			}
-			pollOffsets(scope, HashMap(polledOffsets.size), 0)
-		} else {
-			log.debug { "Received offsets: ${polledOffsets.size}, poll attempts: $pollAttempts" }
-			pollOffsets(scope, polledOffsets, pollAttempts + 1)
+		} catch(e: Throwable) {
+			e.printStackTrace()
 		}
+
+		pollOffsets(scope)
 	}
 
 	override suspend fun close(timeout: Duration) {
-		mutex.onAcquire { consumer.close(timeout) }
+		consumerMutex.onAcquire { consumer.close(timeout) }
 	}
 
-	override suspend fun partitions(): Int = mutex.onAcquire {
+	override suspend fun partitions(): Int = consumerMutex.onAcquire {
 		consumer.subscription()
 			.map { consumer.partitionsFor(it) }
 			.flatten()
@@ -92,9 +91,28 @@ class KafkaConnection<K, V>(
 
 suspend fun <T> Mutex.onAcquire(block: suspend () -> T): T {
 	try {
-		this.lock()
+		this.lock(block)
 		return block()
 	} finally {
-		this.unlock()
+		if(this.holdsLock(block)) {
+			this.unlock(block)
+		}
+	}
+}
+
+suspend fun <T> onAcquire(
+	vararg mutexes: Mutex,
+	timeout: Duration = Duration.ofSeconds(60),
+	block: suspend () -> T
+): T {
+	try {
+		return withTimeout(timeout) {
+			mutexes.forEach { it.lock(block) }
+			block()
+		}
+	} finally {
+		mutexes
+			.filter { it.holdsLock(block) }
+			.forEach { it.unlock() }
 	}
 }

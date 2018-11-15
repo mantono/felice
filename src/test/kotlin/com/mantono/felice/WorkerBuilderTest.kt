@@ -40,13 +40,6 @@ class WorkerBuilderTest {
 
 		val rand = Random()
 		val prod = KafkaProducer<ByteArray, ByteArray>(producerOptions)
-		prod.send(ProducerRecord("topic1", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
-		prod.send(ProducerRecord("topic1", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
-		prod.send(ProducerRecord("topic2", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
-		prod.send(ProducerRecord("topic2", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
-		prod.send(ProducerRecord("topic2", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
-		//prod.send(ProducerRecord("topic1", rand.nextInt().toString().toByteArray(), "42".toByteArray()))
-		prod.send(ProducerRecord("topic1", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
 
 		Thread.sleep(400)
 
@@ -67,6 +60,14 @@ class WorkerBuilderTest {
 			.build()
 
 		val context: CoroutineContext = worker.start()
+
+		prod.send(ProducerRecord("topic1", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
+		prod.send(ProducerRecord("topic1", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
+		prod.send(ProducerRecord("topic2", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
+		prod.send(ProducerRecord("topic2", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
+		prod.send(ProducerRecord("topic2", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
+		//prod.send(ProducerRecord("topic1", rand.nextInt().toString().toByteArray(), "42".toByteArray()))
+		prod.send(ProducerRecord("topic1", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
 
 		Thread.sleep(65_000L)
 		assertTrue(context.isActive)
