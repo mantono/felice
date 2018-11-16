@@ -4,7 +4,6 @@ import com.mantono.felice.api.Message
 import com.mantono.felice.api.MessageResult
 import com.mantono.felice.api.worker.Connection
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -21,7 +20,8 @@ private val log = KotlinLogging.logger("kafka-connection")
 
 class KafkaConnection<K, V>(
 	private val consumer: KafkaConsumer<K, V>,
-	private val scope: CoroutineScope
+	private val scope: CoroutineScope,
+	private val commitInterval: Duration = Duration.ofSeconds(30)
 ): Connection<K, V> {
 	private val consumerMutex = Mutex()
 	private val offsets: MutableMap<TopicPartition, OffsetAndMetadata> = HashMap(16)
@@ -56,7 +56,7 @@ class KafkaConnection<K, V>(
 		}
 
 		try {
-			delay(Duration.ofSeconds(30))
+			delay(commitInterval)
 			if(offsets.isNotEmpty()) {
 				log.debug { "Will commit offsets" }
 				onAcquire(offsetsMutex, consumerMutex) {
