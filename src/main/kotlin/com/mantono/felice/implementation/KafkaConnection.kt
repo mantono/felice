@@ -105,8 +105,8 @@ suspend fun <T> onAcquire(
 	timeout: Duration = Duration.ofSeconds(60),
 	block: suspend () -> T
 ): T {
-	try {
-		return withTimeout(timeout) {
+	return try {
+		withTimeout(timeout) {
 			mutexes.forEach { it.lock(block) }
 			block()
 		}
