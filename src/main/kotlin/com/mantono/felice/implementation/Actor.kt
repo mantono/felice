@@ -52,7 +52,8 @@ private tailrec suspend fun <K, V> process(worker: Worker<K, V>, message: Messag
 		}
 	} catch(e: Throwable) {
 		worker.pipeline.forEach { it.onException(e) }
-		ConsumerResult.TransitoryFailure(e.message)
+		e.printStackTrace()
+		ConsumerResult.TransitoryFailure.fromException(e)
 	}
 
 	val messageResult = MessageResult(result, message.topicPartition, message.offset, message.attempts + 1)

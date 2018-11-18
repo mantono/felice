@@ -7,7 +7,9 @@ sealed class ConsumerResult {
 	/**
 	 * The job was successful
 	 */
-	object Success: ConsumerResult()
+	object Success: ConsumerResult() {
+		override fun toString(): String = "Success"
+	}
 
 	/**
 	 * The job failed.
@@ -21,7 +23,13 @@ sealed class ConsumerResult {
 		 * Optional error message that may tell why the job failed
 		 */
 		val message: String? = null
-	): ConsumerResult()
+	): ConsumerResult() {
+		override fun toString(): String = "TransitoryFailure${message?.let { ": $it" }}"
+
+		companion object {
+			fun fromException(exception: Throwable): TransitoryFailure = TransitoryFailure(exception.message ?: exception::class.toString())
+		}
+	}
 
 	/**
 	 * The job failed.
@@ -38,12 +46,8 @@ sealed class ConsumerResult {
 		 * Optional error message that may tell why the job failed
 		 */
 		val message: String? = null
-	): ConsumerResult()
-
-	override fun toString(): String = when(this) {
-		Success -> "Success"
-		is PermanentFailure -> "PermanentFailure${message?.let { ": $it" }}"
-		is TransitoryFailure -> "TransitoryFailure${message?.let { ": $it" }}"
+	): ConsumerResult() {
+		override fun toString(): String = "PermanentFailure${message?.let { ": $it" }}"
 	}
 }
 
