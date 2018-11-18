@@ -16,7 +16,7 @@ private val log = KotlinLogging.logger("felice-engine")
 fun <K, V> Worker<K, V>.start(): CoroutineContext = execute(this)
 
 private fun <K, V> execute(worker: Worker<K, V>): CoroutineContext {
-	val kafkaConsumer: Connection<K, V> = createKafkaConsumer(worker)
+	val kafkaConsumer: Connection<K, V> = createConnection(worker)
 	val threadCount: UInt = computeThreadCount(kafkaConsumer)
 	val scope: CoroutineScope = WorkerScope(threadCount)
 	log.debug { "Launching director" }
@@ -33,8 +33,8 @@ private fun <K, V> computeThreadCount(consumer: Connection<K, V>): UInt {
 
 private fun min(u0: UInt, u1: UInt): UInt = if(u0 < u1) u0 else u1
 
-private fun <K, V> createKafkaConsumer(worker: Worker<K, V>): Connection<K, V> {
-	val kc = KafkaConsumer<K, V>(worker.config).apply {
+private fun <K, V> createConnection(worker: Worker<K, V>): Connection<K, V> {
+	val kc = KafkaConsumer<K, V>(worker.config, worker.deserializeKey, worker.deserializeValue).apply {
 		subscribe(worker.topics)
 	}
 	return KafkaConnection(kc, CoroutineScope(Job()))
