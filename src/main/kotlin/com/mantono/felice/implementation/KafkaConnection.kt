@@ -83,7 +83,7 @@ class KafkaConnection<K, V>(
 		consumer.subscription()
 			.map { consumer.partitionsFor(it) }
 			.flatten()
-			.also { println("Found partition $it") }
+			.also { log.debug { "Found partition $it" } }
 			.toList()
 			.count()
 	}
