@@ -14,7 +14,7 @@ sealed class KafkaConfig {
 
 		override val default: Map<String, Any> = mapOf(
 			"enable.auto.commit" to false,
-			"bootstrap.servers" to "localhost:9092",
+			"bootstrap.servers" to (System.getenv("KAFKA_HOST") ?: "localhost:9092"),
 			"key.deserializer" to "org.apache.kafka.common.serialization.ByteArrayDeserializer",
 			"value.deserializer" to "org.apache.kafka.common.serialization.ByteArrayDeserializer",
 			"heartbeat.interval.ms" to 4_000,

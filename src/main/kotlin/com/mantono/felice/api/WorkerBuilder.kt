@@ -21,6 +21,9 @@ data class WorkerBuilder<K, V>(
 
 	fun topic(vararg topics: String): WorkerBuilder<K, V> = copy(topics = this.topics + topics)
 
+	fun host(vararg hosts: String): WorkerBuilder<K, V> =
+		copy(config = this.config + ("bootstrap.servers" to hosts.toList()))
+
 	fun option(key: String, value: String): WorkerBuilder<K, V> =
 		copy(config = this.config + (key to value))
 
