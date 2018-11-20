@@ -32,8 +32,13 @@ data class WorkerBuilder<K, V>(
 	fun config(config: Map<String, Any>): WorkerBuilder<K, V>  =
 		copy(config = this.config + config)
 
-	fun intercept(interceptor: Interceptor): WorkerBuilder<K, V> =
-		copy(pipeline = this.pipeline + interceptor)
+	fun <T: Interceptor> intercept(
+		interceptor: T,
+		configure: T.() -> Unit = {}
+	): WorkerBuilder<K, V> {
+		interceptor.configure()
+		return copy(pipeline = this.pipeline + interceptor)
+	}
 
 	fun consumer(consumer: MessageConsumer<K, V>): WorkerBuilder<K, V> =
 		copy(consumer = consumer)
