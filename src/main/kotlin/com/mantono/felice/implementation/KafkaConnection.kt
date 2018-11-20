@@ -83,7 +83,7 @@ class KafkaConnection<K, V>(
 		consumer.subscription()
 			.map { consumer.partitionsFor(it) }
 			.flatten()
-			.also { println("Found partition $it") }
+			.also { log.debug { "Found partition $it" } }
 			.toList()
 			.count()
 	}
@@ -105,8 +105,8 @@ suspend fun <T> onAcquire(
 	timeout: Duration = Duration.ofSeconds(60),
 	block: suspend () -> T
 ): T {
-	try {
-		return withTimeout(timeout) {
+	return try {
+		withTimeout(timeout) {
 			mutexes.forEach { it.lock(block) }
 			block()
 		}

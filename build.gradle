@@ -63,12 +63,6 @@ compileTestKotlin {
     kotlinOptions.jvmTarget = "$jvm_version"
 }
 
-kotlin {
-    experimental {
-        coroutines 'enable'
-    }
-}
-
 dokka {
     outputFormat = 'html'
     outputDirectory = "doc"
