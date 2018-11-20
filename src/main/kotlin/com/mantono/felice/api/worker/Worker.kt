@@ -5,6 +5,7 @@ import com.mantono.felice.api.MessageConsumer
 import com.mantono.felice.api.RetryPolicy
 import com.mantono.felice.api.WorkerBuilder
 import org.apache.kafka.common.serialization.Deserializer
+import java.time.Duration
 
 class Worker<K, V>(
 	val topics: Set<String>,
@@ -13,6 +14,7 @@ class Worker<K, V>(
 	val deserializeKey: Deserializer<K>,
 	val deserializeValue: Deserializer<V>,
 	val retryPolicy: RetryPolicy,
+	val timeout: Duration,
 	consumer: MessageConsumer<K, V>
 ): MessageConsumer<K, V> by consumer {
 

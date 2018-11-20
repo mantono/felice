@@ -3,6 +3,7 @@ package com.mantono.felice.api
 import com.mantono.felice.api.worker.KafkaConfig
 import com.mantono.felice.api.worker.Worker
 import org.apache.kafka.common.serialization.Deserializer
+import java.time.Duration
 
 data class WorkerBuilder<K, V>(
 	private val topics: List<String> = emptyList(),
@@ -11,7 +12,8 @@ data class WorkerBuilder<K, V>(
 	private val keyDeserializer: Deserializer<K>? = null,
 	private val valueDeserializer: Deserializer<V>? = null,
 	private val consumer: MessageConsumer<K, V>? = null,
-	private val retryPolicy: RetryPolicy = Infinite
+	private val retryPolicy: RetryPolicy = Infinite,
+	private val timeout: Duration = Duration.ZERO
 ) {
 	fun groupId(groupId: String): WorkerBuilder<K, V> {
 		require(groupId.isNotBlank())
@@ -58,6 +60,10 @@ data class WorkerBuilder<K, V>(
 	fun retryPolicy(retryPolicy: RetryPolicy): WorkerBuilder<K, V> =
 		this.copy(retryPolicy = retryPolicy)
 
+	fun timeout(timeout: Duration): WorkerBuilder<K, V> = this.copy(timeout = timeout).also {
+		require(!this.timeout.isNegative)
+	}
+
 	fun build(): Worker<K, V> {
 		verifyState()
 		return toWorker()
@@ -71,6 +77,7 @@ data class WorkerBuilder<K, V>(
 			deserializeKey = keyDeserializer!!,
 			deserializeValue = valueDeserializer!!,
 			retryPolicy = retryPolicy,
+			timeout = timeout,
 			consumer = consumer!!
 		)
 

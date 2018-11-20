@@ -8,14 +8,12 @@ import com.mantono.felice.api.MessageResult
 import com.mantono.felice.api.RetryPolicy
 import com.mantono.felice.api.foldMessage
 import com.mantono.felice.api.worker.Worker
-import kotlinx.coroutines.CompletionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.ObsoleteCoroutinesApi
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.channels.actor
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.time.delay
+import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
 import java.time.Duration
 
@@ -47,7 +45,9 @@ private tailrec suspend fun <K, V> process(worker: Worker<K, V>, message: Messag
 		wait(message.attempts, worker.retryPolicy)
 		log.debug { "Processing message $message (attempts: ${message.attempts})" }
 		val pipedMessage: Message<K, V> = worker.pipeline.foldMessage(message)
-		worker.consume(pipedMessage).also { resultToPipe ->
+		worker.timeout.runWithin {
+			worker.consume(pipedMessage)
+		}.also { resultToPipe: ConsumerResult ->
 			worker.pipeline.forEach { it.onResult(resultToPipe) }
 		}
 	} catch(e: Throwable) {
@@ -61,6 +61,16 @@ private tailrec suspend fun <K, V> process(worker: Worker<K, V>, message: Messag
 		process(worker, message.nextAttempt())
 	} else {
 		messageResult
+	}
+}
+
+suspend fun <T> Duration.runWithin(timedFunc: suspend () -> T): T {
+	return if(this == Duration.ZERO) {
+		timedFunc()
+	} else {
+		withTimeout(this.toMillis()) {
+			timedFunc()
+		}
 	}
 }
 
