@@ -1,6 +1,6 @@
 @file:Suppress("EXPERIMENTAL_API_USAGE")
 
-package com.mantono.felice.implementation
+package com.mantono.felice.implementation.actors
 
 import com.mantono.felice.api.ConsumerResult
 import com.mantono.felice.api.Message
@@ -9,9 +9,7 @@ import com.mantono.felice.api.RetryPolicy
 import com.mantono.felice.api.foldMessage
 import com.mantono.felice.api.worker.Worker
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.channels.SendChannel
-import kotlinx.coroutines.channels.actor
 import kotlinx.coroutines.time.delay
 import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
@@ -23,16 +21,9 @@ fun <K, V> CoroutineScope.launchConsumer(
 	worker: Worker<K, V>,
 	results: SendChannel<MessageResult>,
 	capacity: Int = 100
-): SendChannel<Message<K, V>> = actor(
-	context = this.coroutineContext,
-	capacity = capacity,
-	start = CoroutineStart.DEFAULT,
-	onCompletion = { cause: Throwable? ->
-		log.error { cause?.message }
-	}
-) {
+): SendChannel<Message<K, V>> {
 	log.info { "started" }
-	for(message in channel) {
+	return actor(capacity, Duration.ofMinutes(30), this.coroutineContext) { message: Message<K, V> ->
 		log.debug { "Actor received $message" }
 		val result: MessageResult = process(worker, message)
 		log.debug { "Sending $result to result queue" }

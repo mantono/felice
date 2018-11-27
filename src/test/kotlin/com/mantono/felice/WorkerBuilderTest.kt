@@ -9,13 +9,16 @@ import com.mantono.felice.api.worker.KafkaConfig
 import com.mantono.felice.api.worker.Worker
 import com.mantono.felice.implementation.start
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.time.Duration
 import java.util.*
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.CoroutineContext
 
 class WorkerBuilderTest {
@@ -24,6 +27,7 @@ class WorkerBuilderTest {
 	fun testNormalControlFlow() {
 
 		val interceptor = object: Interceptor {
+			val x = AtomicReference<Int>()
 			override fun <K, V> intercept(message: Message<K, V>): Message<K, V> {
 				println("Intercepted message $message")
 				return message
@@ -41,20 +45,21 @@ class WorkerBuilderTest {
 		val rand = Random()
 		val prod = KafkaProducer<ByteArray, ByteArray>(producerOptions)
 
-		Thread.sleep(400)
-
 		val worker: Worker<String, String> = WorkerBuilder<String, String>()
 			.topic("topic1", "topic2")
 			.groupId("my-groupId")
-			.option("bootstrap.servers", "kafka:9092")
-			.deserializeKey { String(it!!) }
+			.host("kafka:9092")
+			.deserializeKey { String(it!!).also { println(it.toString()) } }
 			.deserializeValue { String(it!!) }
-			.intercept(interceptor)
-			.retryPolicy(Limited(5))
+			.intercept(interceptor) {
+				x.getAndSet(4)
+			}
+			.retryPolicy(Limited(5, Duration.ofSeconds(1), Duration.ofMillis(500)))
 			.consumer {
 				println("${it.topic} / ${it.partition} / ${it.offset}")
-				//if(it.value == "42")
-				//	return@consumer ConsumerResult.TransitoryFailure("42")
+				delay(5L + Random().nextInt(210))
+				if(System.currentTimeMillis() % 17L == 0L)
+					return@consumer ConsumerResult.TransitoryFailure("Noooo")
 				ConsumerResult.Success
 			}
 			.build()
@@ -66,10 +71,16 @@ class WorkerBuilderTest {
 		prod.send(ProducerRecord("topic2", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
 		prod.send(ProducerRecord("topic2", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
 		prod.send(ProducerRecord("topic2", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
-		//prod.send(ProducerRecord("topic1", rand.nextInt().toString().toByteArray(), "42".toByteArray()))
 		prod.send(ProducerRecord("topic1", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
 
-		Thread.sleep(65_000L)
+		Thread.sleep(14_000L)
+
+		prod.send(ProducerRecord("topic2", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
+		prod.send(ProducerRecord("topic2", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
+		prod.send(ProducerRecord("topic1", rand.nextInt().toString().toByteArray(), rand.nextInt().toString().toByteArray()))
+
+
+		Thread.sleep(465_000L)
 		assertTrue(context.isActive)
 		context.cancel()
 		assertFalse(context.isActive)

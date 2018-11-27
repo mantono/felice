@@ -3,11 +3,9 @@ package com.mantono.felice.implementation
 import com.mantono.felice.api.Message
 import com.mantono.felice.api.MessageResult
 import com.mantono.felice.api.worker.Worker
+import com.mantono.felice.implementation.actors.launchConsumer
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.channels.SendChannel
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import mu.KotlinLogging
@@ -50,12 +48,28 @@ class ActorSwarm<K, V>(
 	}
 
 	override fun offer(value: Message<K, V>): Boolean = runBlocking {
-		get(value.topicPartition).offer(value)
+		try {
+			get(value.topicPartition).offer(value)
+		} catch(e: Throwable) {
+			createChannel.onAcquire {
+				channels.remove(value.topicPartition)
+			}
+			log.warn { e.message }
+			false
+		}
 	}
 
 	override suspend fun send(value: Message<K, V>) {
-		get(value.topicPartition).send(value).also {
-			log.debug { "Sent message to actor for ${value.topicPartition}" }
+		try {
+			get(value.topicPartition).send(value).also {
+				log.debug { "Sent message to actor for ${value.topicPartition}" }
+			}
+		} catch(e: Throwable) {
+			createChannel.onAcquire {
+				channels.remove(value.topicPartition)
+			}
+			log.warn { e.message }
+			send(value)
 		}
 	}
 
