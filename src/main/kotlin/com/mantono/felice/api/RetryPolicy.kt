@@ -2,24 +2,24 @@ package com.mantono.felice.api
 
 import java.time.Duration
 
-sealed class RetryPolicy {
+interface RetryPolicy {
 	/**
 	 * Initial delay between each subsequent attempts when making a retry.
 	 * Cannot be negative.
 	 */
-	abstract val initialBackOff: Duration
+	val initialBackOff: Duration
 	/**
 	 * The increase of the delay that is added on top of the initial delay from
 	 * [initialBackOff] for each time a job fails with a [ConsumerResult.TransitoryFailure]
 	 * Cannot be negative.
 	 */
-	abstract val buildUp: Duration
+	val buildUp: Duration
 	/**
 	 * The maximum amount of wait time that can be accumulated from [initialBackOff]
 	 * plus [buildUp] time
 	 * Cannot be negative.
 	 */
-	abstract val maxWait: Duration
+	val maxWait: Duration
 
 	fun waitTime(attemptsDone: Long): Duration {
 		require(attemptsDone >= 0)
@@ -38,7 +38,7 @@ sealed class RetryPolicy {
 	}
 }
 
-object Infinite: RetryPolicy() {
+object Infinite: RetryPolicy {
 	override val initialBackOff: Duration = Duration.ofSeconds(5)
 	override val buildUp: Duration = Duration.ofMillis(500)
 	override val maxWait: Duration = Duration.ofSeconds(120)
@@ -53,7 +53,7 @@ data class Limited(
 	override val initialBackOff: Duration = Duration.ofSeconds(10),
 	override val buildUp: Duration = Duration.ofSeconds(1),
 	override val maxWait: Duration = Duration.ofSeconds(60)
-): RetryPolicy() {
+): RetryPolicy {
 	init {
 		require(attempts > 0)
 		require(!initialBackOff.isNegative)
